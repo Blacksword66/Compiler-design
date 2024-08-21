@@ -1,3 +1,4 @@
 #ignore the compiled a.out and lex.yy.c files
 **/a.out
 **/lex.yy.c
+**/*.out

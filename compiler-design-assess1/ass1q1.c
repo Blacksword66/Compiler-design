@@ -82,7 +82,7 @@ void createDFA(DFA *dfa)
     printf("Enter the number of accept states: ");
     scanf("%d", &numAcceptStates);
 
-    printf("Enter the accept state labels:\n");
+    printf("Enter the final state labels:\n");
     for (int i = 0; i < numAcceptStates; i++)
     {
         char acceptLabel[MAX_LABEL_LENGTH];
@@ -98,21 +98,75 @@ void createDFA(DFA *dfa)
     // printf("Enter the number of transitions: ");
     // scanf("%d", &numTransitions);
 
-    printf("Enter transitions in the format 'current_state symbol next_state':\n");
-    for (int i = 0; i < numTransitions; i++)
+    printf("Enter transitions:\n");
+    // for (int i = 0; i < numTransitions; i++)
+    // {
+    //     char currentState[MAX_LABEL_LENGTH], nextState[MAX_LABEL_LENGTH];
+    //     char symbol;
+    //     scanf("%s %c %s", currentState, &symbol, nextState);
+
+    //     int currentIndex = findStateIndex(dfa, currentState);
+    //     int symbolIndex = findSymbolIndex(dfa, symbol);
+    //     int nextIndex = findStateIndex(dfa, nextState);
+
+    //     if (currentIndex != -1 && symbolIndex != -1 && nextIndex != -1)
+    //     {
+    //         dfa->transition[currentIndex][symbolIndex] = nextIndex;
+    //     }
+    // }
+    for (int i = 0; i < dfa->numStates; i++)
     {
-        char currentState[MAX_LABEL_LENGTH], nextState[MAX_LABEL_LENGTH];
-        char symbol;
-        scanf("%s %c %s", currentState, &symbol, nextState);
-
-        int currentIndex = findStateIndex(dfa, currentState);
-        int symbolIndex = findSymbolIndex(dfa, symbol);
-        int nextIndex = findStateIndex(dfa, nextState);
-
-        if (currentIndex != -1 && symbolIndex != -1 && nextIndex != -1)
+        for (int j = 0; j < numSymbols; j++)
         {
-            dfa->transition[currentIndex][symbolIndex] = nextIndex;
+            char currentState[MAX_LABEL_LENGTH], nextState[MAX_LABEL_LENGTH];
+            char symbol;
+            printf("D[%s, %c] = ", dfa->stateLabels[i], dfa->symbols[j]);
+            scanf("%s", nextState);
+            strcpy(currentState, dfa->stateLabels[i]);
+            symbol = dfa->symbols[j];
+            int currentIndex = i;
+            int symbolIndex = j;
+            int nextIndex = findStateIndex(dfa, nextState);
+            if (currentIndex != -1 && symbolIndex != -1 && nextIndex != -1)
+            {
+                dfa->transition[currentIndex][symbolIndex] = nextIndex;
+            }
+            else
+            {
+                dfa->transition[currentIndex][symbolIndex] = -2;
+            }
         }
+    }
+
+    for (int i = 0; i <= numSymbols; i++)
+    {
+        if (i == 0)
+        {
+            printf("\t");
+        }
+        else
+        {
+            printf("%c\t", dfa->symbols[i - 1]);
+        }
+    }
+    printf("\n");
+
+    for (int i = 0; i <= dfa->numStates; i++)
+    {
+        printf("%s\t", dfa->stateLabels[i]);
+        for (int j = 0; j < numSymbols; j++)
+        {
+            int nextState = dfa->transition[i][j];
+            if (nextState != -2)
+            {
+                printf("%s\t", dfa->stateLabels[nextState]);
+            }
+            else
+            {
+                printf("-\t");
+            }
+        }
+        printf("\n");
     }
 }
 
