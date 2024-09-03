@@ -19,9 +19,9 @@ int isKeyword(const char *token)
     return 0;
 }
 
-void printOperatorName(char c)
+void printOperatorName(char c, FILE *output)
 {
-    printf("Operator, ");
+    fprintf(output, "Operator, ");
     switch (c)
     {
     case '+':
@@ -89,7 +89,7 @@ void printOperatorName(char c)
     }
 }
 
-void identifyTokens(char *input)
+void identifyTokens(char *input, FILE *output)
 {
     char token[MAX_TOKEN_LENGTH];
     int i = 0, j = 0;
@@ -112,11 +112,11 @@ void identifyTokens(char *input)
 
             if (isKeyword(token))
             {
-                printf("Keyword: %s\n\n", token);
+                fprintf(output, "Keyword: %s\n\n", token);
             }
             else
             {
-                printf("Identifier: %s\n\n", token);
+                fprintf(output, "Identifier: %s\n\n", token);
             }
             j = 0;
         }
@@ -128,7 +128,7 @@ void identifyTokens(char *input)
                 token[j++] = input[i++];
             }
             token[j] = '\0';
-            printf("Number: %s\n\n", token);
+            fprintf(output, "Number: %s\n\n", token);
             j = 0;
         }
 
@@ -144,8 +144,8 @@ void identifyTokens(char *input)
                 token[j++] = input[i++];
             }
             token[j] = '\0';
-            printf("Operator: %s\n\n", token);
-            printOperatorName(token[0]);
+            fprintf(output, "Operator: %s\n\n", token);
+            printOperatorName(token[0], output);
             j = 0;
         }
 
@@ -153,7 +153,7 @@ void identifyTokens(char *input)
         {
             token[j++] = input[i++];
             token[j] = '\0';
-            printOperatorName(token[0]);
+            printOperatorName(token[0], output);
             j = 0;
         }
 
@@ -166,25 +166,32 @@ void identifyTokens(char *input)
 
 int main()
 {
-    char input[MAX_INPUT_LENGTH];
+    FILE *inputFile, *tokens;
 
-    printf("Enter a statement: ");
-    if (fgets(input, sizeof(input), stdin) != NULL)
+    inputFile = fopen("input.txt", "r");
+    if (inputFile == NULL)
     {
-        // Remove the trailing newline character, if present
-        size_t len = strlen(input);
-        if (len > 0 && input[len - 1] == '\n')
-        {
-            input[len - 1] = '\0';
-        }
-
-        printf("Input statement: %s\n\n", input);
-        identifyTokens(input);
-    }
-    else
-    {
-        printf("Error reading input.\n");
+        printf("Error: Could not open input file.\n");
+        return 1;
     }
 
+    tokens = fopen("tokens.txt", "w");
+    if (tokens == NULL)
+    {
+        printf("Error: Could not open output file.\n");
+        fclose(inputFile);
+        return 1;
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), inputFile))
+    {
+        identifyTokens(line, tokens);
+    }
+    // Close both files
+    fclose(inputFile);
+    fclose(tokens);
+
+    printf("Data successfully written to tokens.txt\n");
     return 0;
 }

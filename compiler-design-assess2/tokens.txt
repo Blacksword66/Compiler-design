@@ -1,0 +1,49 @@
+Keyword: int
+
+Identifier: main
+
+Operator, Operator, Operator, Keyword: int
+
+Identifier: a
+
+Operator: =
+
+Operator, Number: 10
+
+Operator, Keyword: int
+
+Identifier: b
+
+Operator: =
+
+Operator, Number: 20
+
+Operator, Keyword: int
+
+Identifier: sum
+
+Operator: =
+
+Operator, Identifier: a
+
+Operator: +
+
+Operator, Identifier: b
+
+Operator, Identifier: printf
+
+Operator, Identifier: Sum
+
+Operator: %
+
+Operator, Identifier: d
+
+Identifier: n
+
+Operator, Identifier: sum
+
+Operator, Operator, Keyword: return
+
+Number: 0
+
+Operator, Operator, 

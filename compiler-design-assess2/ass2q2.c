@@ -164,27 +164,28 @@ void identifyTokens(char *input)
     }
 }
 
+// int main() {
+//     char input[] = "int a = 10 + b;";
+//     printf("Input statement: %s\n\n", input);
+//     identifyTokens(input);
+//     return 0;
+// }
+
 int main()
 {
-    char input[MAX_INPUT_LENGTH];
-
-    printf("Enter a statement: ");
-    if (fgets(input, sizeof(input), stdin) != NULL)
+    FILE *file;
+    file = fopen("input.txt", "r");
+    if (file == NULL)
     {
-        // Remove the trailing newline character, if present
-        size_t len = strlen(input);
-        if (len > 0 && input[len - 1] == '\n')
-        {
-            input[len - 1] = '\0';
-        }
-
-        printf("Input statement: %s\n\n", input);
-        identifyTokens(input);
+        printf("Error: Could not open file.\n");
+        return 1;
     }
-    else
+    char line[256];
+    while (fgets(line, sizeof(line), file))
     {
-        printf("Error reading input.\n");
+        identifyTokens(line);
     }
+    fclose(file);
 
     return 0;
 }
