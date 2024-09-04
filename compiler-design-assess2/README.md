@@ -7,3 +7,16 @@
 
 ## Experiment 4:
 - Construct a lexical analyser using LEX tool. Input: [program.txt](https://github.com/Blacksword66/Compiler-design/blob/main/compiler-design-assess2/program.txt)
+
+## How to execute (for linux and macOS only):
+#### Prerequisite:
+Please make sure that the input files and output files are in the same directory as the lex code 
+
+Once made sure, type the following in the terminal:
+
+```shell
+lex file.l 
+gcc lex.yy.c 
+./a.out
+
+```
