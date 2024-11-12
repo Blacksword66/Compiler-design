@@ -1,163 +1,485 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-#define MAX 10
+#define MAX_SYMBOLS 100
+#define MAX_PRODUCTIONS 10
+#define MAX_TERMINALS 20
+#define MAX_NONTERMINALS 20
 
-// Parse table with production numbers assigned
-int parseTable[MAX][MAX] = {
-    {1, 0, 0, 1, 0, 0}, // E -> TH       (Production 1)
-    {0, 2, 0, 0, 3, 3}, // H -> +TH | @  (Productions 2 and 3)
-    {4, 0, 0, 4, 0, 0}, // T -> FI      (Production 4)
-    {0, 6, 5, 0, 6, 6}, // I -> *FI | @  (Productions 5 and 6)
-    {8, 0, 0, 7, 0, 0}  // F -> (E) | i  (Productions 7 and 8)
-};
+typedef struct
+{
+    char lhs;
+    char rhs[MAX_PRODUCTIONS][MAX_SYMBOLS];
+    int count;
+} Production;
 
-// Grammar rules
-char *production[] = {
-    "E -> TH",
-    "H -> +TH",
-    "H -> @", // Epsilon production replaced with @
-    "T -> FI",
-    "I -> *FI",
-    "I -> @", // Epsilon production replaced with @
-    "F -> (E)",
-    "F -> i"
-};
+typedef struct
+{
+    char terminal;
+    char production[MAX_SYMBOLS];
+} TerminalProduction;
 
-// Stack for parsing
-char stack[MAX];
-int top = -1;
+typedef struct
+{
+    char nonTerminal;
+    TerminalProduction entries[MAX_TERMINALS];
+    int count;
+} ParseTableEntry;
 
-// Function to push to stack
-void push(char symbol) {
-    if (top == MAX - 1) {
-        printf("Stack Overflow\n");
-    } else {
-        stack[++top] = symbol;
-    }
+Production productions[MAX_NONTERMINALS];
+int productionCount = 0;
+char terminals[MAX_TERMINALS];
+int terminalCount = 0;
+char nonTerminals[MAX_NONTERMINALS];
+int nonTerminalCount = 0;
+char firstSets[MAX_NONTERMINALS][MAX_SYMBOLS][MAX_SYMBOLS];
+int firstCount[MAX_NONTERMINALS];
+char followSets[MAX_NONTERMINALS][MAX_SYMBOLS][MAX_SYMBOLS];
+int followCount[MAX_NONTERMINALS];
+ParseTableEntry parseTable[MAX_NONTERMINALS];
+int parseTableCount = 0;
+
+int isNonTerminalChar(char c)
+{
+    return isupper(c);
 }
 
-// Function to pop from stack
-char pop() {
-    if (top == -1) {
-        printf("Stack Underflow\n");
-        return '\0';
-    } else {
-        return stack[top--];
+int containsString(char set[][MAX_SYMBOLS], int count, char *symbol)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(set[i], symbol) == 0)
+            return 1;
     }
+    return 0;
 }
 
-// Function to check if stack is empty
-int isEmpty() {
-    return top == -1;
-}
-
-// Function to print stack contents and the remaining input
-void printStack(char input[], int inputIndex) {
-    printf("Stack: ");
-    for (int i = top; i >= 0; i--) {
-        printf("%c", stack[i]);
-    }
-    printf("\nInput: ");
-    for (int i = inputIndex; input[i] != '\0'; i++) {
-        printf("%c", input[i]);
-    }
-    printf("\n");
-}
-
-// Function to get terminal index
-int getTerminalIndex(char symbol) {
-    switch (symbol) {
-        case '+': return 1; // Terminal index for '+'
-        case '*': return 2; // Terminal index for '*'
-        case '(': return 3; // Terminal index for '('
-        case ')': return 4; // Terminal index for ')'
-        case 'i': return 0; // 'i' for identifier (id)
-        case '$': return 5; // End of input
-        default: return -1; // Invalid terminal
-    }
-}
-
-// Function to get non-terminal index
-int getNonTerminalIndex(char symbol) {
-    switch (symbol) {
-        case 'E': return 0; // Non-terminal index for E
-        case 'H': return 1; // Replacing E' with H
-        case 'T': return 2; // Non-terminal index for T
-        case 'I': return 3; // Replacing T' with I
-        case 'F': return 4; // Non-terminal index for F
-        default: return -1; // Invalid non-terminal
-    }
-}
-
-// Predictive parsing function
-void predictiveParsing(char input[]) {
-    int i = 0; // Input index
-    push('$'); // Push end of input symbol
-    push('E'); // Push start symbol
-
-    while (!isEmpty()) {
-        printStack(input, i); // Show the current stack content and input state
-        char topStack = stack[top]; // Get top of stack
-        char currentInput = input[i]; // Get current input character
-
-        // Check if both current input and top of stack are '$'
-        if (currentInput == '$' && topStack == '$') {
-            printf("Input string is successfully parsed.\n");
-            return;
+void addTerminal(char c)
+{
+    if (!isNonTerminalChar(c) && c != 'e' && c != '$')
+    {
+        for (int i = 0; i < terminalCount; i++)
+        {
+            if (terminals[i] == c)
+                return;
         }
+        terminals[terminalCount++] = c;
+    }
+}
 
-        if (topStack == currentInput) {
-            // Terminal matches, consume input
-            printf("Match: %c\n", currentInput);
-            pop();
-            i++;
-        } else if (isupper(topStack)) {
-            // Non-terminal, use parse table
-            int row = getNonTerminalIndex(topStack);
-            int col = getTerminalIndex(currentInput);
+void addNonTerminal(char c)
+{
+    for (int i = 0; i < nonTerminalCount; i++)
+    {
+        if (nonTerminals[i] == c)
+            return;
+    }
+    nonTerminals[nonTerminalCount++] = c;
+}
 
-            if (row != -1 && col != -1 && parseTable[row][col] != 0) {
-                pop(); // Pop the non-terminal
+int findProductionIndex(char lhs)
+{
+    for (int i = 0; i < productionCount; i++)
+    {
+        if (productions[i].lhs == lhs)
+            return i;
+    }
+    return -1;
+}
 
-                // Get the production from the table
-                printf("Production used: %s\n", production[parseTable[row][col] - 1]);
+void addProduction(char lhs, const char *rhs)
+{
+    int index = findProductionIndex(lhs);
+    if (index == -1)
+    {
+        productions[productionCount].lhs = lhs;
+        strcpy(productions[productionCount].rhs[productions[productionCount].count++], rhs);
+        addNonTerminal(lhs);
+        productionCount++;
+    }
+    else
+    {
+        strcpy(productions[index].rhs[productions[index].count++], rhs);
+    }
+}
 
-                // Push the production to the stack in reverse order
-                char *prod = production[parseTable[row][col] - 1];
-                for (int j = strlen(prod) - 1; j > 3; j--) { // Start from index 3 to skip "X -> "
-                    if (prod[j] != ' ' && prod[j] != '@') { // Check for epsilon
-                        push(prod[j]);
+void computeFirst(char symbol, char result[][MAX_SYMBOLS], int *resCount)
+{
+    if (!isNonTerminalChar(symbol))
+    {
+        char temp[2] = {symbol, '\0'};
+        if (!containsString(result, *resCount, temp))
+        {
+            strcpy(result[*resCount], temp);
+            (*resCount)++;
+        }
+        return;
+    }
+    int index = findProductionIndex(symbol);
+    if (index == -1)
+        return;
+    for (int i = 0; i < productions[index].count; i++)
+    {
+        char first = productions[index].rhs[i][0];
+        if (first == 'e')
+        {
+            char temp[] = "e";
+            if (!containsString(result, *resCount, temp))
+            {
+                strcpy(result[*resCount], temp);
+                (*resCount)++;
+            }
+        }
+        else if (!isNonTerminalChar(first))
+        {
+            char temp[2] = {first, '\0'};
+            if (!containsString(result, *resCount, temp))
+            {
+                strcpy(result[*resCount], temp);
+                (*resCount)++;
+            }
+            addTerminal(first);
+        }
+        else
+        {
+            computeFirst(first, result, resCount);
+        }
+    }
+}
+void computeFirstSets()
+{
+    for (int i = 0; i < nonTerminalCount; i++)
+    {
+        firstCount[i] = 0;
+        computeFirst(nonTerminals[i], firstSets[i], &firstCount[i]);
+    }
+}
+void computeFollow(char symbol, char result[][MAX_SYMBOLS], int *resCount)
+{
+    if (symbol == productions[0].lhs)
+    {
+        char temp[] = "$";
+        if (!containsString(result, *resCount, temp))
+        {
+            strcpy(result[*resCount], temp);
+            (*resCount)++;
+        }
+    }
+    for (int i = 0; i < productionCount; i++)
+    {
+        for (int j = 0; j < productions[i].count; j++)
+        {
+            char *prod = productions[i].rhs[j];
+            for (int k = 0; k < strlen(prod); k++)
+            {
+                if (prod[k] == symbol)
+                {
+                    if (k + 1 < strlen(prod))
+                    {
+                        char next = prod[k + 1];
+                        if (next == 'e')
+                        {
+                            computeFollow(productions[i].lhs, result, resCount);
+                        }
+                        else if (!isNonTerminalChar(next))
+                        {
+                            char temp[2] = {next, '\0'};
+                            if (!containsString(result, *resCount, temp))
+                            {
+                                strcpy(result[*resCount], temp);
+                                (*resCount)++;
+                            }
+                        }
+                        else
+                        {
+                            int nextIndex = findProductionIndex(next);
+                            if (nextIndex != -1)
+                            {
+                                for (int f = 0; f < firstCount[nextIndex]; f++)
+                                {
+                                    if (strcmp(firstSets[nextIndex][f], "e") != 0)
+                                    {
+                                        if (!containsString(result, *resCount, firstSets[nextIndex][f]))
+                                        {
+                                            strcpy(result[*resCount], firstSets[nextIndex][f]);
+                                            (*resCount)++;
+                                        }
+                                    }
+                                }
+                                int contains_e = 0;
+                                for (int f = 0; f < firstCount[nextIndex]; f++)
+                                {
+                                    if (strcmp(firstSets[nextIndex][f], "e") == 0)
+                                    {
+                                        contains_e = 1;
+                                        break;
+                                    }
+                                }
+                                if (contains_e)
+                                {
+                                    int lhsIndex = findProductionIndex(productions[i].lhs);
+                                    if (lhsIndex != -1)
+                                    {
+                                        for (int f = 0; f < followCount[lhsIndex]; f++)
+                                        {
+                                            if (!containsString(result, *resCount, followSets[lhsIndex][f]))
+                                            {
+                                                strcpy(result[*resCount], followSets[lhsIndex][f]);
+                                                (*resCount)++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        int lhsIndex = findProductionIndex(productions[i].lhs);
+                        if (lhsIndex != -1)
+                        {
+                            for (int f = 0; f < followCount[lhsIndex]; f++)
+                            {
+                                if (!containsString(result, *resCount, followSets[lhsIndex][f]))
+                                {
+                                    strcpy(result[*resCount], followSets[lhsIndex][f]);
+                                    (*resCount)++;
+                                }
+                            }
+                        }
                     }
                 }
-            } else {
-                printf("Error: No matching production found for %c\n", topStack);
-                return;
             }
-        } else {
-            printf("Error: Unexpected terminal symbol at stack: %c and input: %c\n", topStack, currentInput);
-            return;
         }
-    }
-
-    // Final check to ensure successful parsing if not already checked
-    if (input[i] == '$') {
-        printf("Input string is successfully parsed.\n");
-    } else {
-        printf("Error: Input string is not fully consumed.\n");
     }
 }
 
-int main() {
-    char input[50];
+void computeFollowSets()
+{
+    for (int i = 0; i < nonTerminalCount; i++)
+    {
+        followCount[i] = 0;
+    }
+    int changed = 1;
+    while (changed)
+    {
+        changed = 0;
+        for (int i = 0; i < nonTerminalCount; i++)
+        {
+            char current = nonTerminals[i];
+            char tempSet[MAX_SYMBOLS][MAX_SYMBOLS];
+            int tempCount = 0;
+            computeFollow(current, tempSet, &tempCount);
+            for (int j = 0; j < tempCount; j++)
+            {
+                if (!containsString(followSets[i], followCount[i], tempSet[j]))
+                {
+                    strcpy(followSets[i][followCount[i]++], tempSet[j]);
+                    changed = 1;
+                }
+            }
+        }
+    }
+}
 
-    // Input the string to parse
-    printf("Enter the input string (terminated by $): ");
+void computeParseTable()
+{
+    for (int i = 0; i < nonTerminalCount; i++)
+    {
+        parseTable[i].nonTerminal = nonTerminals[i];
+        parseTable[i].count = 0;
+    }
+    for (int i = 0; i < productionCount; i++)
+    {
+        char lhs = productions[i].lhs;
+        int lhsIndex = -1;
+        for (int nt = 0; nt < nonTerminalCount; nt++)
+        {
+            if (nonTerminals[nt] == lhs)
+            {
+                lhsIndex = nt;
+                break;
+            }
+        }
+        if (lhsIndex == -1)
+            continue;
+        for (int p = 0; p < productions[i].count; p++)
+        {
+            char *prod = productions[i].rhs[p];
+            if (prod[0] == 'e')
+            {
+                for (int f = 0; f < followCount[lhsIndex]; f++)
+                {
+                    parseTable[lhsIndex].entries[parseTable[lhsIndex].count].terminal = followSets[lhsIndex][f][0];
+                    strcpy(parseTable[lhsIndex].entries[parseTable[lhsIndex].count].production, "e");
+                    parseTable[lhsIndex].count++;
+                }
+            }
+            else
+            {
+                char first = prod[0];
+                if (!isNonTerminalChar(first))
+                {
+                    parseTable[lhsIndex].entries[parseTable[lhsIndex].count].terminal = first;
+                    strcpy(parseTable[lhsIndex].entries[parseTable[lhsIndex].count].production, prod);
+                    parseTable[lhsIndex].count++;
+                    addTerminal(first);
+                }
+                else
+                {
+                    int firstIndex = findProductionIndex(first);
+                    if (firstIndex != -1)
+                    {
+                        for (int f = 0; f < firstCount[firstIndex]; f++)
+                        {
+                            if (strcmp(firstSets[firstIndex][f], "e") != 0)
+                            {
+                                parseTable[lhsIndex].entries[parseTable[lhsIndex].count].terminal = firstSets[firstIndex][f][0];
+                                strcpy(parseTable[lhsIndex].entries[parseTable[lhsIndex].count].production, prod);
+                                parseTable[lhsIndex].count++;
+                            }
+                        }
+                        int contains_e = 0;
+                        for (int f = 0; f < firstCount[firstIndex]; f++)
+                        {
+                            if (strcmp(firstSets[firstIndex][f], "e") == 0)
+                            {
+                                contains_e = 1;
+                                break;
+                            }
+                        }
+                        if (contains_e)
+                        {
+                            for (int f = 0; f < followCount[lhsIndex]; f++)
+                            {
+                                parseTable[lhsIndex].entries[parseTable[lhsIndex].count].terminal = followSets[lhsIndex][f][0];
+                                strcpy(parseTable[lhsIndex].entries[parseTable[lhsIndex].count].production, prod);
+                                parseTable[lhsIndex].count++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void displayParseTable()
+{
+    printf("\nParse Table:\n");
+    printf("NT\tTerminal\tProduction\n");
+    for (int i = 0; i < nonTerminalCount; i++)
+    {
+        for (int j = 0; j < parseTable[i].count; j++)
+        {
+            printf("%c\t%c\t\t%c->%s\n", parseTable[i].nonTerminal, parseTable[i].entries[j].terminal, parseTable[i].nonTerminal, parseTable[i].entries[j].production);
+        }
+    }
+}
+
+void predictiveParse(char input_string[], ParseTableEntry parse_table[], int rule_count)
+{
+    char stack[MAX_SYMBOLS];
+    int top = 0;
+    stack[top++] = '$';
+    // stack[top++] = 'E';
+    //
+    stack[top++] = 'S';
+    strcat(input_string, "$");
+    int ptr = 0;
+    printf("\nStack\tInput\t\tAction\n");
+    while (top > 0)
+    {
+        stack[top] = '\0';
+        if (strlen(stack) > 3)
+        {
+            printf("%s\t%s\t\t", stack, &input_string[ptr]);
+        }
+        else
+        {
+            printf("%s\t\t%s\t\t", stack, &input_string[ptr]);
+        }
+        char topSymbol = stack[top - 1];
+        char current = input_string[ptr];
+        if (topSymbol == current)
+        {
+            printf("Match\n");
+            top--;
+            ptr++;
+            if (topSymbol == '$' && current == '$')
+            {
+                printf("Parsing successful\n");
+                break;
+            }
+        }
+        else
+        {
+            int found = 0;
+            int ntIndex = -1;
+            for (int i = 0; i < nonTerminalCount; i++)
+            {
+                if (parse_table[i].nonTerminal == topSymbol)
+                {
+                    ntIndex = i;
+                    break;
+                }
+            }
+            if (ntIndex != -1)
+            {
+                for (int j = 0; j < parse_table[ntIndex].count; j++)
+                {
+                    if (parse_table[ntIndex].entries[j].terminal == current)
+                    {
+                        printf("Output %c->%s\n", topSymbol, parse_table[ntIndex].entries[j].production);
+                        top--;
+                        if (strcmp(parse_table[ntIndex].entries[j].production, "e") != 0)
+                        {
+                            int len = strlen(parse_table[ntIndex].entries[j].production);
+                            for (int k = len - 1; k >= 0; k--)
+                                stack[top++] = parse_table[ntIndex].entries[j].production[k];
+                        }
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    printf("Rejected\n");
+                    break;
+                }
+            }
+            else
+            {
+                printf("Rejected\n");
+                break;
+            }
+        }
+    }
+}
+
+int main()
+{
+    addProduction('S', "(L)");
+    addProduction('S', "a");
+    addProduction('L', "SA");
+    addProduction('A', ",SA");
+    addProduction('A', "e");
+
+    computeFirstSets();
+
+    computeFollowSets();
+
+    computeParseTable();
+
+    displayParseTable();
+
+    char input[MAX_SYMBOLS];
+    printf("\nEnter input string: ");
     scanf("%s", input);
 
-    // Call predictive parsing function
-    predictiveParsing(input);
+    predictiveParse(input, parseTable, productionCount);
 
     return 0;
 }
